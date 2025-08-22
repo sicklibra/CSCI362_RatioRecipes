@@ -1,0 +1,3 @@
+I am pretty well rounded in both front end and back end though I have little eye for desighn. 
+I am stronger in backend logic and can typically build frontend to meet specifications though my skills in tailwind and typescript are pretty lacking, I tend to do pretty well with css and js as well as some skills developed in the Vue framework and Django.
+My strongest points are in documentation and testing. Though I can float between front and back end, finding edge cases and developing proper documents are a true strength of mine. 
