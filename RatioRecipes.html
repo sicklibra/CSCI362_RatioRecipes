@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ratio Recipes</title>
+  <style>
+    body { font-family: sans-serif; margin: 16px; }
+    .tabs { display: flex; gap: 6px; margin-bottom: 8px; }
+    .tabs button { padding: 6px 10px; }
+    .panel { display: none; margin: 8px 0; }
+    .panel[data-active="true"] { display: block; }
+    label { display:block; margin: 8px 0 4px; }
+    input, textarea { width: 100%; max-width: 520px; padding: 6px; }
+    .row { display: grid; grid-template-columns: 160px 1fr auto; gap: 6px; max-width: 720px; align-items: center; }
+    .row + .row { margin-top: 6px; }
+    .actions { margin-top: 10px; display:flex; gap:8px; flex-wrap:wrap; }
+    .muted { color: #555; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <h1 style="margin:0 0 8px; font-size: 1.1rem;">Ratio Recipes</h1>
+
+  <!-- Tabs -->
+  <div class="tabs" role="tablist">
+    <button type="button" class="tab" id="tab-header" aria-controls="panel-header" aria-selected="true">Header</button>
+    <button type="button" class="tab" id="tab-notes" aria-controls="panel-notes" aria-selected="false">Notes</button>
+    <button type="button" class="tab" id="tab-texts" aria-controls="panel-texts" aria-selected="false">Texts</button>
+  </div>
+
+  <!-- Panels -->
+  <div id="panel-header" class="panel" role="tabpanel" aria-labelledby="tab-header" data-active="true">
+    <label for="title">Title</label>
+    <input id="title" type="text" placeholder="e.g., Pancake Mix" />
+
+    <label for="version">Version</label>
+    <input id="version" type="text" placeholder="e.g., v1.0" />
+
+    <div style="margin-top:10px">
+      <strong>Amount &amp; Ingredient Pairs</strong>
+      <div id="ingredient-list" style="margin-top:6px"></div>
+      <div class="actions" style="margin-top:6px">
+        <button type="button" id="add-row">Add pair</button>
+        <button type="button" id="clear-rows">Clear pairs</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="panel-notes" class="panel" role="tabpanel" aria-labelledby="tab-notes">
+    <label for="notes">Notes</label>
+    <textarea id="notes" rows="5" placeholder="Freeform notes..."></textarea>
+  </div>
+
+  <div id="panel-texts" class="panel" role="tabpanel" aria-labelledby="tab-texts">
+    <label for="texts">Texts</label>
+    <textarea id="texts" rows="5" placeholder="Additional text content..."></textarea>
+  </div>
+
+  <!-- Primary actions -->
+  <div class="actions">
+    <button type="button" id="download">Download JSON</button>
+    <button type="button" id="reset">Reset Form</button>
+    <span id="status" class="muted" aria-live="polite"></span>
+  </div>
+
+  <script>
+    // --- Tabs ---
+    const tabButtons = Array.from(document.querySelectorAll('.tab'));
+    const panels = {
+      header: document.getElementById('panel-header'),
+      notes: document.getElementById('panel-notes'),
+      texts: document.getElementById('panel-texts')
+    };
+    tabButtons.forEach(btn => btn.addEventListener('click', () => {
+      tabButtons.forEach(b => b.setAttribute('aria-selected', String(b === btn)));
+      Object.values(panels).forEach(p => p.dataset.active = 'false');
+      const key = btn.id.replace('tab-', '');
+      panels[key].dataset.active = 'true';
+    }));
+
+    // --- Ingredient rows ---
+    const list = document.getElementById('ingredient-list');
+    const addRowBtn = document.getElementById('add-row');
+    const clearRowsBtn = document.getElementById('clear-rows');
+
+    function makeRow(amount = '', ingredient = '') {
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.innerHTML = `
+        <input type="number" step="any" placeholder="Amount (number)" />
+        <input type="text" placeholder="Ingredient (text)" />
+        <button type="button" aria-label="Remove">Remove</button>
+      `;
+      row.lastElementChild.addEventListener('click', () => row.remove());
+      if (amount !== '') row.children[0].value = amount;
+      if (ingredient !== '') row.children[1].value = ingredient;
+      return row;
+    }
+    function addRow(a = '', i = '') { list.appendChild(makeRow(a, i)); }
+    addRowBtn.addEventListener('click', () => addRow());
+    clearRowsBtn.addEventListener('click', () => { list.innerHTML = ''; setStatus('Pairs cleared'); });
+
+    // start with one empty row
+    addRow();
+
+    // --- Collect data & download JSON ---
+    function collectPairs() {
+      return Array.from(list.querySelectorAll('.row')).map(r => {
+        const amt = r.children[0].value.trim();
+        const ing = r.children[1].value.trim();
+        return {
+          amount: amt === '' ? null : Number(amt),
+          ingredient: ing
+        };
+      }).filter(x => x.amount !== null || x.ingredient !== '');
+    }
+
+    function payload() {
+      return {
+        header: {
+          title: document.getElementById('title').value.trim(),
+          version: document.getElementById('version').value.trim()
+        },
+        notes: document.getElementById('notes').value.trim(),
+        texts: document.getElementById('texts').value.trim(),
+        items: collectPairs()
+      };
+    }
+
+    function downloadJSON(data, filename = 'form_data.json') {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    const downloadBtn = document.getElementById('download');
+    downloadBtn.addEventListener('click', () => {
+      downloadJSON(payload());
+      setStatus('JSON downloaded');
+    });
+
+    const resetBtn = document.getElementById('reset');
+    resetBtn.addEventListener('click', () => {
+      document.getElementById('title').value = '';
+      document.getElementById('version').value = '';
+      document.getElementById('notes').value = '';
+      document.getElementById('texts').value = '';
+      list.innerHTML = ''; addRow();
+      setStatus('Form reset');
+    });
+
+    function setStatus(t) { const s = document.getElementById('status'); s.textContent = t; setTimeout(() => s.textContent = '', 2000); }
+  </script>
+</body>
+</html>
