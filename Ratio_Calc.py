@@ -8,14 +8,14 @@ G2KG2MG=1000  #1k g/kg 1k mg/g
 
 def saveRecipe(instring):
     jDict=loadRecipe(instring)
-    #precondition is that json values match exactly, and 
+    #precondition is that json values match exactly, and are in weight format.  
     inRecipe=makeRecipe(jDict)
     return inRecipe.ratJason()
 
 def getRecipe(instring):
     jDict=loadRecipe(instring)
-    inrecipe=makeRecipe(jDict)
-    return inrecipe.wtJson()
+    recipe=makeRecipe(jDict)
+    return recipe.wtJson()
 
 '''If we are updating/iterating a recipe, I will return a pk of -1 this will signal 
 on the front end, that the key for this recipe needs to be new and the parent key needs to be 
@@ -24,6 +24,112 @@ def updateRecipe(instring):
     jDict=loadRecipe(instring)
     inrecipe= makeRecipe(jDict)
     inrecipe.pk="-1"
+    return inrecipe.ratJson()
+
+# If you send this one with the ratio json string, the function will return the updated wt 
+def changeWt(instring):
+    jDict=loadRecipe(instring)
+    inrecipe= makeRecipe(jDict)
+    return inrecipe.wtJson()
+
+#send the weight string here and the system will conduct the calculations
+def changeUnit(instring, newUnit):
+    jDict=loadRecipe(instring)
+    recipe= makeRecipe(jDict)
+    if recipe.unit== newUnit:
+        return recipe.ratJson()
+    elif recipe.unit== 'g':
+        if newUnit== 'kg':
+            metricConv(recipe, 'up', 1)
+        elif newUnit== 'mg':
+            metricConv(recipe, 'down', 1)
+        else:
+            met2imp(recipe, recipe.unit, newUnit)
+    elif recipe.unit== 'lb':
+        if newUnit != 'oz':
+            imp2met(recipe, recipe.unit, newUnit)
+        else:
+            oz2lb(recipe, 'down')
+    elif recipe.unit == 'oz':
+        if newUnit != 'lb':
+            imp2met(recipe, recipe.unit, newUnit)
+        else:
+            oz2lb(recipe, 'up')
+    elif recipe.unit=='kg':
+        if newUnit=='g':
+            metricConv(recipe, 'down', 1)
+        elif newUnit == 'mg':
+            metricConv(recipe, 'down', 2)
+        else:
+            met2imp(recipe, recipe.unit, newUnit)
+    elif recipe.unit=='mg':
+        if newUnit== 'g':
+            metricConv(recipe, 'up', 1)
+        elif newUnit=='kg':
+            metricConv(recipe, 'up', 2)
+        else:
+            met2imp(recipe, recipe.unit, newUnit)   
+
+    return recipe.ratJson()
+
+
+def gtolb(recipe, direction):
+    # up is for grams to lbs
+    if direction=='up':
+        for ing in recipe.wtingredients:
+            ing.wt=ing.wt/G2LB
+    else:
+        for ing in recipe.wtingredients:
+            ing.wt=ing.wt*G2LB
+
+def metricConv(recipe, direction, jumps):
+    conv=jumps*G2KG2MG
+    if direction=='up':
+        for ing in recipe.wtingredients:
+            ing.wt=ing.wt*conv
+    else:
+        for ing in recipe.wtingredients:
+            ing.wt= ing.wt/conv
+
+def oz2lb(recipe, direciton):
+    # up is for oz to lbs
+    if direciton== 'up':
+        for ing in recipe.wtingredients:
+            ing.wt = ing.wt/OZ2LB
+    elif direciton == 'down':
+        for ing in recipe.wtingredients:
+            ing.wt == ing.wt * OZ2LB
+
+def gtooz(recipe,):
+    gtolb(recipe, 'up')
+    oz2lb(recipe, 'down')
+
+def met2imp(recipe, inunit, outunit):
+    # Converts to grams
+    if inunit=='kg':
+        metricConv(recipe, 'down', 1)
+    elif inunit=='mg':
+        metricConv(recipe, 'up', 1)
+
+    #once in grams will convert to lbs
+    gtolb(recipe, 'up')
+    # if in oz required, will convert to oz from lbs
+    if outunit== 'oz':
+        oz2lb(recipe, 'down')
+
+def imp2met(recipe, inunit, outunit):
+    #convert to grams
+    if inunit=='lb':
+        gtolb(recipe, 'down')
+    elif inunit=='oz':
+        oz2lb(recipe, 'up')
+        gtolb(recipe, 'down')
+    # now in grams check if kg or mg
+    if outunit=='kg':
+        metricConv(recipe, 'up', 1)
+    elif outunit== 'mg':
+        metricConv(recipe, 'down', 1)
+        
 
 def makeRecipe(inDict):
     return Recipe(inDict['name'], inDict['description'], inDict['ingredients'], inDict['notes'],inDict['unit'], inDict['totwt'], inDict['parentkey'])
