@@ -1,255 +1,261 @@
-// Import the app's CSS styles
-import './App.css';
-// Import React's useState hook for managing state
+import './Styles/placeholder.css';
 import { useState, useEffect } from 'react';
-// Import Firestore functions for adding documents
-import { collection, addDoc } from 'firebase/firestore';
-// Import the Firestore instance and projectId from firebase.js
-import { firestore, auth, projectId } from './firebase';
-// Import the Firebase Auth functions we'll use for email/password auth
 import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged,
-} from 'firebase/auth';
+  collection,
+  addDoc,
+  updateDoc,
+  doc,
+  getDocs,
+  getDoc,
+  serverTimestamp,
+  query,
+  orderBy
+} from 'firebase/firestore';
+import { firestore } from './firebase';
+
 function App() {
-  // State variable to hold the user's input value for Firestore
-  const [inputValue, setInputValue] = useState("");
-  // State variable to hold the user's name for Firestore
-  const [userName, setUserName] = useState("");
-  // State variable to hold status messages (success or error)
-  const [status, setStatus] = useState("");
-  // Authentication state: email and password fields for signup/login
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  // Holds the currently signed-in user (null when signed-out)
-  const [currentUser, setCurrentUser] = useState(null);
+  // Form state
+  const [recipeId, setRecipeId] = useState(null);
+  const [name, setName] = useState('');
+  const [unit, setUnit] = useState('lb');
+  const [description, setDescription] = useState('');
+  const [notes, setNotes] = useState('');
+  const [ingredients, setIngredients] = useState([
+    { name: '', weight: '' }
+  ]);
+  const [status, setStatus] = useState('');
+  const [recipesList, setRecipesList] = useState([]); // for loading/viewing existing recipes
 
-  // Recipe form state
-  const [recipeName, setRecipeName] = useState("");
-  const [recipeDescription, setRecipeDescription] = useState("");
-  const [unit, setUnit] = useState('g');
-  const [totalWeight, setTotalWeight] = useState('');
-  const [ingredientsText, setIngredientsText] = useState('[{"name":"flour","weight":200},{"name":"water","weight":120}]');
-  const [scaleFactor, setScaleFactor] = useState('1');
-
-  // Function to update inputValue as the user types in the value field
-  const handleInputChange = (e) => {
-    setInputValue(e.target.value); // Set inputValue to the current value of the input field
-  };
-
-  // Save + scale recipe by calling the HTTPS Cloud Function
-  const handleSaveRecipe = async () => {
-    setStatus('Saving recipe...');
-    try {
-      const ingredients = JSON.parse(ingredientsText);
-      const payload = {
-        name: recipeName,
-        description: recipeDescription,
-        ingredients: ingredients,
-        unit: unit,
-        totwt: totalWeight ? parseFloat(totalWeight) : 0,
-        scale: scaleFactor ? parseFloat(scaleFactor) : 1
-      };
-
-      // Use deployed function URL. Change region if your function uses a different one.
-      const functionUrl = `https://us-central1-${projectId}.cloudfunctions.net/save_and_scale_recipe`;
-
-      const res = await fetch(functionUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || JSON.stringify(data));
-      setStatus(`Recipe saved (id: ${data.id})`);
-      // clear form
-      setRecipeName('');
-      setRecipeDescription('');
-      setUnit('g');
-      setTotalWeight('');
-      setIngredientsText('[{"name":"flour","weight":200},{"name":"water","weight":120}]');
-      setScaleFactor('1');
-    } catch (err) {
-      setStatus('Error saving recipe: ' + err.message);
-    }
-  };
-
-  // Function to update userName as the user types in the name field
-  const handleNameChange = (e) => {
-    setUserName(e.target.value); // Set userName to the current value of the name field
-  };
-
-  // Function to save both inputValue and userName to Firestore when the button is clicked
-  const handleSubmit = async () => {
-    // Log the user inputs to the console for debugging
-    console.log('Submitting to Firestore:', { value: inputValue, name: userName });
-    try {
-      // Add a new document to the 'recipeType' collection with both attributes: value and name
-      await addDoc(collection(firestore, "recipeType"), { value: inputValue, name: userName });
-      setStatus("Value and name saved to Firestore!"); // Set status to success message
-      setInputValue(""); // Clear the value input field
-      setUserName(""); // Clear the name input field
-    } catch (error) {
-      setStatus("Error saving value: " + error.message); // Set status to error message
-    }
-  };
-
-  // -------------------- Authentication handlers --------------------
-  // Handle creating a new user with email and password
-  const handleSignup = async () => {
-    try {
-      // Create a new Firebase Auth user using the email and password entered
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      // userCredential.user contains the newly created user's info
-      setStatus(`Signed up as ${userCredential.user.email}`);
-      setEmail(""); // Clear the email input
-      setPassword(""); // Clear the password input
-    } catch (error) {
-      // Show any error returned by Firebase (weak password, malformed email, etc.)
-      setStatus('Signup error: ' + error.message);
-    }
-  };
-
-  // Handle signing in an existing user with email and password
-  const handleLogin = async () => {
-    try {
-      // Sign in using Firebase Auth; if successful, Firebase will return a userCredential
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      setStatus(`Signed in as ${userCredential.user.email}`);
-      setEmail("");
-      setPassword("");
-    } catch (error) {
-      setStatus('Login error: ' + error.message);
-    }
-  };
-
-  // Handle signing out the current user
-  const handleSignOut = async () => {
-    try {
-      await signOut(auth);
-      setStatus('Signed out');
-    } catch (error) {
-      setStatus('Sign out error: ' + error.message);
-    }
-  };
-
-  // Subscribe to auth state changes when the component mounts so we can show
-  // the current user's state in the UI. onAuthStateChanged fires whenever the
-  // user signs in or out (and immediately with the current state).
+  // Load latest recipes for quick selection
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
-    });
-    // Cleanup subscription on unmount
-    return () => unsubscribe();
+    const load = async () => {
+      try {
+        const q = query(collection(firestore, 'recipes'), orderBy('updatedAt', 'desc'));
+        const snap = await getDocs(q);
+        const list = snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
+        setRecipesList(list);
+      } catch (e) {
+        console.warn('Failed to load recipes list', e);
+      }
+    };
+    load();
   }, []);
 
-  // Render the UI: input fields, button, and status message
+  const addIngredientRow = () => setIngredients(prev => [...prev, { name: '', weight: '' }]);
+  const updateIngredient = (idx, key, val) => {
+    setIngredients(prev => prev.map((ing, i) => i === idx ? { ...ing, [key]: val } : ing));
+  };
+  const removeEmptyIngredients = (arr) => arr.filter(i => i.name.trim() || i.weight !== '');
+
+  const clearForm = () => {
+    setRecipeId(null);
+    setName('');
+    setUnit('lb');
+    setDescription('');
+    setNotes('');
+    setIngredients([{ name: '', weight: '' }]);
+  };
+
+  // Create a new blank recipe document and load it
+  const createRecipeFromScratch = async () => {
+    try {
+      const base = {
+        name: '',
+        unit: 'lb',
+        description: '',
+        notes: '',
+        ingredients: [{ name: '', weight: null }],
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+      const ref = await addDoc(collection(firestore, 'recipes'), base);
+      setRecipeId(ref.id);
+      setName('');
+      setUnit('lb');
+      setDescription('');
+      setNotes('');
+      setIngredients([{ name: '', weight: '' }]);
+      setStatus(`Started new recipe (id: ${ref.id})`);
+      // refresh list so new doc is selectable immediately
+      const snap = await getDocs(query(collection(firestore, 'recipes'), orderBy('updatedAt', 'desc')));
+      setRecipesList(snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) })));
+    } catch (e) {
+      setStatus('Error creating new recipe: ' + (e?.message || String(e)));
+    }
+  };
+
+  const saveRecipe = async () => {
+    setStatus('Saving...');
+    try {
+      const cleaned = removeEmptyIngredients(ingredients).map(i => ({
+        name: i.name.trim(),
+        weight: i.weight === '' ? null : Number(i.weight)
+      }));
+
+      const docData = {
+        name: name.trim(),
+        unit,
+        description: description.trim(),
+        notes: notes.trim(),
+        // Always include ingredients, at least one blank row
+        ingredients: cleaned.length ? cleaned : [{ name: '', weight: null }],
+        updatedAt: serverTimestamp(),
+      };
+
+      let id = recipeId;
+      if (id) {
+        await updateDoc(doc(firestore, 'recipes', id), docData);
+      } else {
+        const ref = await addDoc(collection(firestore, 'recipes'), {
+          ...docData,
+          createdAt: serverTimestamp(),
+        });
+        id = ref.id;
+        setRecipeId(id);
+      }
+
+      const idText = id != null && id !== '' ? ` (id: ${id})` : '';
+      const nameText = name.trim();
+      setStatus(`Saved${nameText ? `: ${nameText}` : ''}${idText}`);
+      // refresh list
+      const snap = await getDocs(query(collection(firestore, 'recipes'), orderBy('updatedAt', 'desc')));
+      setRecipesList(snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) })));
+    } catch (e) {
+      setStatus('Error: ' + (e?.message || String(e)));
+    }
+  };
+
+  const loadRecipe = async (id) => {
+    try {
+      const d = await getDoc(doc(firestore, 'recipes', id));
+      if (!d.exists()) return;
+      const r = d.data();
+      setRecipeId(d.id);
+      setName(r.name || '');
+      setUnit(r.unit || 'lb');
+      setDescription(r.description || '');
+      setNotes(r.notes || '');
+      setIngredients((Array.isArray(r.ingredients) && r.ingredients.length ? r.ingredients : [{ name: '', weight: '' }]).map(i => ({
+        name: i.name || '',
+        weight: (i.weight ?? '')
+      })));
+      const displayName = (r.name ?? '').toString().trim();
+      setStatus(displayName ? `Loaded: ${displayName}` : `Loaded recipe ${d.id}`);
+    } catch (e) {
+      setStatus('Load error: ' + (e?.message || String(e)));
+    }
+  };
+
+  // A simple read-only preview of the current recipe (matches "display information" requirement)
+  const Preview = () => (
+    <div className="preview">
+      <h3>Preview</h3>
+      <div className="grid">
+        <div><strong>Name:</strong></div><div>{name || '-'}</div>
+        <div><strong>Unit:</strong></div><div>{unit}</div>
+        <div><strong>Description:</strong></div><div>{description || '-'}</div>
+        <div><strong>Notes:</strong></div><div>{notes || '-'}</div>
+      </div>
+      <div className="ingredients-preview">
+        <div className="ing-header"><span>Ingredient</span><span>WT</span></div>
+        {removeEmptyIngredients(ingredients).map((i, idx) => (
+          <div key={idx} className="ing-row"><span>{i.name}</span><span>{i.weight}</span></div>
+        ))}
+        {removeEmptyIngredients(ingredients).length === 0 && <div className="ing-row empty">No ingredients</div>}
+      </div>
+    </div>
+  );
+
   return (
-    <div className="App"> {/* Main app container */}
-      <header className="App-header"> {/* App header section */}
-        {/* Input field for user to enter a value to store in Firestore */}
-        <input
-          type="text" // Input type is text
-          value={inputValue} // Value of the input field is inputValue state
-          onChange={handleInputChange} // Update inputValue when user types
-          placeholder="Enter a value to store" // Placeholder text
-        />
-        {/* Input field for user to enter their name to store in Firestore */}
-        <input
-          type="text" // Input type is text
-          value={userName} // Value of the input field is userName state
-          onChange={handleNameChange} // Update userName when user types
-          placeholder="Enter your name" // Placeholder text
-          style={{ marginTop: '10px' }} // Add some space above this input
-        />
-        {/* ---------------- Authentication UI ---------------- */}
-        {/* Email input for signup/login */}
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email"
-          style={{ marginTop: '16px' }}
-        />
-        {/* Password input for signup/login */}
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Password"
-          style={{ marginTop: '8px' }}
-        />
-        {/* Buttons to create an account or sign in using email/password */}
-        <div style={{ marginTop: '8px' }}>
-          {/* Create a new account with the entered email/password */}
-          <button onClick={handleSignup}>Sign up</button>
-          {/* Sign in with an existing account */}
-          <button onClick={handleLogin} style={{ marginLeft: '8px' }}>Log in</button>
+    <div className="app-shell">
+      {/* Top bar */}
+      <div className="topbar">
+        <div className="brand">Ratio Recipes</div>
+        <div className="actions">
+          <select
+            aria-label="Select recipe"
+            onChange={(e) => e.target.value && loadRecipe(e.target.value)}
+            defaultValue=""
+          >
+            <option value="" disabled>Load Recipe…</option>
+            {recipesList.map(r => (
+              <option key={r.id} value={r.id}>{r.name || r.id}</option>
+            ))}
+          </select>
         </div>
-        {/* Show sign-out button only when a user is signed in */}
-        {currentUser ? (
-          <div style={{ marginTop: '12px' }}>
-            {/* Display the signed-in user's email */}
-            <p>Signed in as: {currentUser.email}</p>
-            {/* Button to sign the user out */}
-            <button onClick={handleSignOut}>Sign out</button>
+      </div>
+
+      {/* Content */}
+      <div className="container">
+        <h2 className="title">View/Change Recipe</h2>
+
+        <div className="form-grid">
+          {/* Name */}
+          <label className="label">Recipe Name</label>
+          <input className="input" type="text" value={name} onChange={(e) => setName(e.target.value)} />
+
+          {/* Units */}
+          <label className="label">Units</label>
+          <div className="units-row">
+            <select className="input" value={unit} onChange={(e) => setUnit(e.target.value)}>
+              <option value="g">g</option>
+              <option value="kg">kg</option>
+              <option value="lb">lb</option>
+              <option value="oz">oz</option>
+            </select>
           </div>
-        ) : (
-          <p style={{ marginTop: '8px' }}>Not signed in</p>
-        )}
-        {/* Button to save both value and name to Firestore */}
-        <button onClick={handleSubmit} style={{ marginTop: '10px' }}>Save to Firestore</button>
-        {/* Recipe form: name, description, total weight, ingredients JSON and scale factor */}
-        <div style={{ marginTop: '20px', textAlign: 'left', maxWidth: '520px' }}>
-          <h3>Save & Scale Recipe</h3>
-          <input
-            type="text"
-            value={recipeName}
-            onChange={(e) => setRecipeName(e.target.value)}
-            placeholder="Recipe name"
-            style={{ width: '100%', marginTop: '6px' }}
-          />
-          <input
-            type="text"
-            value={recipeDescription}
-            onChange={(e) => setRecipeDescription(e.target.value)}
-            placeholder="Short description"
-            style={{ width: '100%', marginTop: '6px' }}
-          />
-          <input
-            type="text"
-            value={totalWeight}
-            onChange={(e) => setTotalWeight(e.target.value)}
-            placeholder="Total weight (optional, numeric)"
-            style={{ width: '48%', marginTop: '6px', marginRight: '4%' }}
-          />
-          <input
-            type="text"
-            value={scaleFactor}
-            onChange={(e) => setScaleFactor(e.target.value)}
-            placeholder="Scale factor (e.g. 1.5)"
-            style={{ width: '48%', marginTop: '6px' }}
-          />
-          <textarea
-            value={ingredientsText}
-            onChange={(e) => setIngredientsText(e.target.value)}
-            placeholder='Ingredients as JSON e.g. [{"name":"flour","weight":200}]'
-            rows={6}
-            style={{ width: '100%', marginTop: '8px' }}
-          />
-          <div style={{ marginTop: '8px' }}>
-            <button onClick={handleSaveRecipe}>Save & Scale Recipe</button>
+
+          {/* Description */}
+          <label className="label">Description</label>
+          <textarea className="input" rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />
+
+          {/* Ingredients */}
+          <label className="label">Ingredients</label>
+          <div className="ingredients">
+            <div className="ingredients-table">
+              <div className="head">
+                <span>Ingredient</span>
+                <span>weight</span>
+              </div>
+              {ingredients.map((ing, idx) => (
+                <div className="row" key={idx}>
+                  <input
+                    className="cell"
+                    type="text"
+                    value={ing.name}
+                    onChange={(e) => updateIngredient(idx, 'name', e.target.value)}
+                    placeholder="Ingredient Name"
+                  />
+                  <input
+                    className="cell wt"
+                    type="number"
+                    step="any"
+                    value={ing.weight}
+                    onChange={(e) => updateIngredient(idx, 'weight', e.target.value)}
+                    placeholder="weight"
+                  />
+                </div>
+              ))}
+            </div>
+            <button className="add-btn" onClick={addIngredientRow}>+</button>
           </div>
+
+          {/* Notes */}
+          <label className="label">Notes</label>
+          <textarea className="input" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </div>
-        {/* Show status message if available (success or error) */}
-        {status && <p>{status}</p>}
-      </header>
+
+        <div className="actions-row">
+          <button className="btn" onClick={saveRecipe}>Update</button>
+          <button className="btn" onClick={createRecipeFromScratch} style={{ marginLeft: 8 }}>Recipe from Scratch</button>
+        </div>
+
+        {status && <div className="status">{status}</div>}
+
+        <Preview />
+      </div>
     </div>
   );
 }
 
-// Export the App component as the default export
 export default App;
