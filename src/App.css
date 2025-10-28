@@ -2,11 +2,7 @@
   text-align: center;
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-  /* animation removed to stop spinning */
-}
+
 
 .App-header {
   background-color: #282c34;
