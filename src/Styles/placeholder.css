@@ -1,0 +1,136 @@
+/* Centralized styles for the Recipe UI */
+.App { text-align: left; }
+
+/* New layout for the Recipe UI */
+.app-shell {
+	background: #f3f4f6;
+	min-height: 100vh;
+	color: #111827;
+}
+
+.topbar {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 12px 16px;
+	background: #e5e7eb;
+	border-bottom: 1px solid #d1d5db;
+}
+.brand {
+	font-weight: 700;
+	font-size: 18px;
+	font-family: Georgia, 'Times New Roman', serif;
+}
+.topbar .actions select {
+	padding: 6px 10px;
+	border: 1px solid #cbd5e1;
+	border-radius: 6px;
+	background: #fff;
+}
+
+.container {
+	max-width: 880px;
+	margin: 16px auto;
+	background: #f8f8f8;
+	border: 1px solid #e5e7eb;
+	border-radius: 8px;
+	padding: 16px;
+}
+.title {
+	text-align: center;
+	margin: 8px 0 16px;
+	font-weight: 600;
+}
+
+.form-grid {
+	display: grid;
+	grid-template-columns: 180px 1fr;
+	gap: 10px 14px;
+}
+.label {
+	align-self: center;
+	color: #374151;
+}
+.input {
+	padding: 8px 10px;
+	border: 1px solid #d1d5db;
+	border-radius: 6px;
+	background: #e5e7eb;
+}
+.units-row { display: flex; gap: 8px; align-items: center; }
+
+.ingredients { display: flex; gap: 10px; align-items: flex-start; }
+.ingredients-table {
+	flex: 1;
+	display: grid;
+	grid-template-columns: 1fr 120px;
+	gap: 8px 10px;
+	background: #e5e7eb;
+	border: 1px solid #d1d5db;
+	border-radius: 6px;
+	padding: 10px;
+}
+.ingredients-table .head {
+	grid-column: 1 / -1;
+	display: grid;
+	grid-template-columns: 1fr 120px;
+	font-weight: 600;
+	color: #4b5563;
+}
+.ingredients-table .row {
+	grid-column: 1 / -1;
+	display: grid;
+	grid-template-columns: 1fr 120px;
+	gap: 8px 10px;
+}
+.ingredients-table .cell {
+	padding: 8px 10px;
+	border: 1px solid #cbd5e1;
+	border-radius: 6px;
+	background: #fff;
+}
+.ingredients-table .cell.wt { text-align: right; }
+
+.add-btn {
+	width: 36px;
+	height: 36px;
+	border-radius: 6px;
+	border: 1px solid #cbd5e1;
+	background: #fff;
+	cursor: pointer;
+}
+
+.actions-row { margin-top: 16px; display: flex; justify-content: center; gap: 8px; }
+.btn {
+	padding: 10px 16px;
+	border-radius: 6px;
+	border: 1px solid #9ca3af;
+	background: #e5e7eb; /* unify color with secondary */
+	cursor: pointer;
+}
+.btn.secondary { background: #e5e7eb; }
+.btn:active { transform: translateY(1px); }
+
+.status { margin: 10px auto; text-align: center; color: #065f46; }
+
+.preview {
+	margin-top: 18px;
+	border-top: 1px solid #e5e7eb;
+	padding-top: 12px;
+}
+.preview .grid {
+	display: grid;
+	grid-template-columns: 140px 1fr;
+	gap: 6px 10px;
+	margin-bottom: 10px;
+}
+.ingredients-preview .ing-header,
+.ingredients-preview .ing-row {
+	display: grid;
+	grid-template-columns: 1fr 120px;
+	gap: 6px 10px;
+}
+.ingredients-preview .ing-header { font-weight: 600; color: #4b5563; }
+.ingredients-preview .ing-row.empty { color: #6b7280; font-style: italic; }
+
+/* spinner animation removed */
